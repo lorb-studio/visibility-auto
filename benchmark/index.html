@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>visibility-auto benchmark — 1000 sections</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; background: #fafafa; color: #1a1a1a; }
+
+    .controls {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: #fff; border-bottom: 1px solid #e0e0e0;
+      padding: 12px 24px; display: flex; gap: 16px; align-items: center;
+    }
+    .controls button {
+      padding: 8px 16px; border: 1px solid #ccc; border-radius: 4px;
+      background: #fff; cursor: pointer; font-size: 14px;
+    }
+    .controls button:hover { background: #f0f0f0; }
+    .controls button.active { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
+    .metrics {
+      margin-left: auto; font-size: 13px; font-family: monospace;
+      display: flex; gap: 24px;
+    }
+    .metrics span { display: flex; flex-direction: column; align-items: flex-end; }
+    .metrics .label { font-size: 10px; color: #888; text-transform: uppercase; }
+    .metrics .value { font-size: 16px; font-weight: 600; }
+
+    .container { padding-top: 72px; }
+
+    section {
+      padding: 24px 32px; border-bottom: 1px solid #eee;
+    }
+    section h2 { font-size: 16px; margin-bottom: 8px; }
+    section p { font-size: 14px; line-height: 1.6; color: #444; }
+    section table {
+      width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13px;
+    }
+    section table th, section table td {
+      border: 1px solid #ddd; padding: 6px 10px; text-align: left;
+    }
+    section table th { background: #f5f5f5; }
+    section .placeholder-img {
+      width: 100%; height: 120px; background: #e8e8e8; border-radius: 4px;
+      margin-top: 12px; display: flex; align-items: center; justify-content: center;
+      color: #999; font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="controls">
+    <button id="btn-without">Without visibility-auto</button>
+    <button id="btn-with">With visibility-auto</button>
+    <button id="btn-rebuild">Rebuild sections</button>
+    <div class="metrics">
+      <span>
+        <span class="label">Sections</span>
+        <span class="value" id="metric-count">—</span>
+      </span>
+      <span>
+        <span class="label">Build DOM</span>
+        <span class="value" id="metric-build">—</span>
+      </span>
+      <span>
+        <span class="label">Apply VA</span>
+        <span class="value" id="metric-apply">—</span>
+      </span>
+      <span>
+        <span class="label">Reflow</span>
+        <span class="value" id="metric-reflow">—</span>
+      </span>
+    </div>
+  </div>
+
+  <div class="container" id="container"></div>
+
+  <script type="module">
+    import { init, restoreAll } from '../dist/index.js';
+
+    const SECTION_COUNT = 1000;
+    const container = document.getElementById('container');
+    let cleanup = null;
+
+    // Content templates for mixed content types
+    const templates = [
+      // Text only
+      (i) => `
+        <h2>Section ${i} — Text</h2>
+        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit.</p>
+        <p>Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Curabitur pretium tincidunt lacus. Nulla gravida orci a odio.</p>
+      `,
+      // Text + image placeholder
+      (i) => `
+        <h2>Section ${i} — Image</h2>
+        <p>Visual content section with a placeholder image element below.</p>
+        <div class="placeholder-img">${320 + (i % 5) * 40} × ${120 + (i % 3) * 40}</div>
+        <p>Caption text for the image content. Additional description follows here to add height variance.</p>
+      `,
+      // Table
+      (i) => `
+        <h2>Section ${i} — Table</h2>
+        <table>
+          <thead><tr><th>Metric</th><th>Before</th><th>After</th><th>Delta</th></tr></thead>
+          <tbody>
+            <tr><td>FCP</td><td>${(1.2 + i * 0.01).toFixed(2)}s</td><td>${(0.8 + i * 0.005).toFixed(2)}s</td><td>-${(0.4 + i * 0.005).toFixed(2)}s</td></tr>
+            <tr><td>TBT</td><td>${(200 + i).toFixed(0)}ms</td><td>${(80 + i * 0.5).toFixed(0)}ms</td><td>-${(120 + i * 0.5).toFixed(0)}ms</td></tr>
+            <tr><td>CLS</td><td>0.${(10 + i % 20)}</td><td>0.0${(1 + i % 5)}</td><td>improved</td></tr>
+          </tbody>
+        </table>
+      `,
+    ];
+
+    function buildSections() {
+      const t0 = performance.now();
+      const fragment = document.createDocumentFragment();
+      for (let i = 0; i < SECTION_COUNT; i++) {
+        const section = document.createElement('section');
+        section.innerHTML = templates[i % templates.length](i);
+        fragment.appendChild(section);
+      }
+      container.innerHTML = '';
+      container.appendChild(fragment);
+      const buildTime = performance.now() - t0;
+
+      document.getElementById('metric-count').textContent = SECTION_COUNT;
+      document.getElementById('metric-build').textContent = buildTime.toFixed(1) + 'ms';
+      document.getElementById('metric-apply').textContent = '—';
+      document.getElementById('metric-reflow').textContent = '—';
+
+      return buildTime;
+    }
+
+    function measureReflow() {
+      const t0 = performance.now();
+      // Force synchronous reflow by reading layout
+      const sections = container.querySelectorAll('section');
+      let totalHeight = 0;
+      for (const s of sections) {
+        totalHeight += s.offsetHeight;
+      }
+      const reflowTime = performance.now() - t0;
+      document.getElementById('metric-reflow').textContent = reflowTime.toFixed(1) + 'ms';
+      return reflowTime;
+    }
+
+    function setActive(btn) {
+      document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    }
+
+    document.getElementById('btn-without').addEventListener('click', function () {
+      if (cleanup) { cleanup(); cleanup = null; }
+      restoreAll();
+      setActive(this);
+      buildSections();
+      // Measure reflow after paint
+      requestAnimationFrame(() => requestAnimationFrame(() => measureReflow()));
+      document.getElementById('metric-apply').textContent = 'n/a';
+    });
+
+    document.getElementById('btn-with').addEventListener('click', function () {
+      if (cleanup) { cleanup(); cleanup = null; }
+      restoreAll();
+      setActive(this);
+      buildSections();
+      // Apply visibility-auto and measure
+      requestAnimationFrame(() => {
+        const t0 = performance.now();
+        cleanup = init();
+        const applyTime = performance.now() - t0;
+        document.getElementById('metric-apply').textContent = applyTime.toFixed(1) + 'ms';
+        requestAnimationFrame(() => measureReflow());
+      });
+    });
+
+    document.getElementById('btn-rebuild').addEventListener('click', () => {
+      if (cleanup) { cleanup(); cleanup = null; }
+      restoreAll();
+      document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+      buildSections();
+      requestAnimationFrame(() => requestAnimationFrame(() => measureReflow()));
+    });
+
+    // Initial build
+    buildSections();
+    requestAnimationFrame(() => requestAnimationFrame(() => measureReflow()));
+  </script>
+</body>
+</html>
