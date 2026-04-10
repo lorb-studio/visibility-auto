@@ -1,15 +1,13 @@
 <p align="center">
-  <a href="https://lorb.studio">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="../.github/logo-light.svg">
-      <img alt="Lorb.studio" src="../.github/logo-dark.svg" height="40">
-    </picture>
-  </a>
+  <img src=".github/icon.png" width="80" height="80" alt="visibility-auto" />
 </p>
 
-# @lorb/visibility-auto
+<h1 align="center">visibility-auto</h1>
+<p align="center">Long pages render instantly. Three lines.</p>
 
-Long pages render instantly. Three lines.
+<p align="center">
+  <a href="https://www.npmjs.com/package/@lorb/visibility-auto"><code>npm install @lorb/visibility-auto</code></a>
+</p>
 
 **Automatic.** Finds all major elements, measures them, and applies `content-visibility: auto`. Offscreen content skips rendering entirely.
 
