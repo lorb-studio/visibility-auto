@@ -9,6 +9,10 @@
   <a href="https://www.npmjs.com/package/@lorb/visibility-auto"><code>npm install @lorb/visibility-auto</code></a>
 </p>
 
+<p align="center">
+  <img src="./demo.gif" alt="visibility-auto demo" width="600">
+</p>
+
 **Automatic.** Finds all major elements, measures them, and applies `content-visibility: auto`. Offscreen content skips rendering entirely.
 
 **Dynamic.** New elements added to the DOM are handled automatically via MutationObserver. Window resizes trigger re-measurement.
